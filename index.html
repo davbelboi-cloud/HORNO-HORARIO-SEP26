@@ -628,6 +628,63 @@ function ls(key,def){try{const v=localStorage.getItem(key);return v!=null?JSON.p
 function lsSet(key,val){try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}}
 
 
+
+// --- Download helper (iPad/iOS + desktop) ---
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+}
+function downloadCanvasAsPng(canvas, filename){
+  const name=filename||"horario.png";
+  function fallbackOpen(){
+    try{
+      const dataUrl=canvas.toDataURL("image/png");
+      const w=window.open("");
+      if(w){
+        w.document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"/><title>'+name+'</title><style>body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;font-family:system-ui;color:#fff}img{max-width:100%;height:auto}p{padding:12px;text-align:center;font-size:14px}</style></head><body><p>Mantén pulsada la imagen → Guardar imagen / Añadir a Fotos</p><img src="'+dataUrl+'" alt="'+name+'"/></body></html>');
+        w.document.close();
+      }else{
+        // Popup blocked: show in same tab via temporary link open
+        const a=document.createElement("a");
+        a.href=dataUrl; a.target="_blank"; a.rel="noopener";
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+    }catch(e){console.error(e);}
+  }
+  function classicDownload(dataUrl){
+    const a=document.createElement("a");
+    a.download=name;
+    a.href=dataUrl;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  if(canvas.toBlob){
+    canvas.toBlob(function(blob){
+      if(!blob){ classicDownload(canvas.toDataURL("image/png")); return; }
+      const file=new File([blob], name, {type:"image/png"});
+      // iPad/iPhone: system share sheet (Save Image, Files, WhatsApp...)
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:name, text:"Horario"}).catch(function(){
+          if(isIOS()) fallbackOpen();
+          else classicDownload(URL.createObjectURL(blob));
+        });
+        return;
+      }
+      if(isIOS()){
+        fallbackOpen();
+        return;
+      }
+      const url=URL.createObjectURL(blob);
+      classicDownload(url);
+      setTimeout(function(){URL.revokeObjectURL(url);},2000);
+    }, "image/png");
+  }else{
+    const dataUrl=canvas.toDataURL("image/png");
+    if(isIOS()) fallbackOpen();
+    else classicDownload(dataUrl);
+  }
+}
+
 // --- Toast ---
 function ToastHost({toasts, onDismiss}){
   if(!toasts||!toasts.length) return null;
@@ -850,9 +907,7 @@ function EmpSnapshotModal({emp,dept,weekOffset,daySlots,onClose}){
   function download(){
     if(!window.html2canvas||!ref.current)return;
     window.html2canvas(ref.current,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
-      const a=document.createElement("a");
-      a.download=emp.name.replace(/\s+/g,"_")+"_semana.png";
-      a.href=canvas.toDataURL("image/png");a.click();
+      downloadCanvasAsPng(canvas, emp.name.replace(/\s+/g,"_")+"_semana.png");
     });
   }
 
@@ -911,7 +966,7 @@ function EmpSnapshotModal({emp,dept,weekOffset,daySlots,onClose}){
             <button onClick={()=>setZoom(z=>Math.min(2,parseFloat((z+0.1).toFixed(1))))} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748b",padding:"0 4px"}}>+</button>
           </div>
           <button className="btn" onClick={()=>setShowMonth({zoom:1})}>Mes</button>
-          <button className="btn btn-primary" onClick={download}>Descargar</button>
+          <button className="btn btn-primary" onClick={download}>📱 Guardar / Compartir</button>
           <button className="btn" onClick={onClose}>X</button>
         </div>
         <div style={{overflow:"auto",flex:1,padding:16}}>
@@ -1042,9 +1097,7 @@ function WeekSnapshotModal({dept,deptEmps,weekOffset,slots,daySlots,festivos,act
   function download(){
     if(!window.html2canvas||!ref.current)return;
     window.html2canvas(ref.current,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
-      const a=document.createElement("a");
-      a.download="horario-"+dept.label+"-"+weekLabel+".png";
-      a.href=canvas.toDataURL("image/png");a.click();
+      downloadCanvasAsPng(canvas, "horario-"+dept.label+"-"+weekLabel+".png");
     });
   }
   return (
@@ -1055,7 +1108,7 @@ function WeekSnapshotModal({dept,deptEmps,weekOffset,slots,daySlots,festivos,act
             <div style={{fontSize:11,color:"#94a3b8",textTransform:"uppercase"}}>Horario semanal</div>
             <div style={{fontWeight:700,fontSize:16}}>{dept.icon} {dept.label} - {weekLabel}</div>
           </div>
-          <button className="btn btn-primary" onClick={download}>Descargar PNG</button>
+          <button className="btn btn-primary" onClick={download}>📱 Guardar / Compartir</button>
           <button className="btn" onClick={onClose}>X</button>
         </div>
         <div style={{overflow:"auto",flex:1,background:"#f8fafc",padding:16}}>
@@ -1186,7 +1239,7 @@ function DeptMonthModal({dept,deptEmps,weekOffset,daySlots,festivos,activeDeptId
   function download(){
     if(!window.html2canvas||!ref.current)return;
     window.html2canvas(ref.current,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
-      const a=document.createElement("a"); a.download=dept.label+"-mes.png"; a.href=canvas.toDataURL("image/png"); a.click();
+      downloadCanvasAsPng(canvas, dept.label+"-mes.png");
     });
   }
 
@@ -1207,7 +1260,7 @@ function DeptMonthModal({dept,deptEmps,weekOffset,daySlots,festivos,activeDeptId
             <span style={{fontSize:11,color:"#64748b",minWidth:32,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
             <button onClick={()=>setZoom(z=>Math.min(2,parseFloat((z+0.1).toFixed(1))))} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748b",padding:"0 3px"}}>+</button>
           </div>
-          <button className="btn btn-primary" onClick={download}>Descargar PNG</button>
+          <button className="btn btn-primary" onClick={download}>📱 Guardar / Compartir</button>
           <button className="btn" onClick={onClose}>X</button>
         </div>
         {/* Table */}
@@ -1343,7 +1396,7 @@ function DaysOffHistoryModal({dept,deptEmps,daySlots,festivos,activeDeptId,onClo
   function download(){
     if(!window.html2canvas||!ref.current)return;
     window.html2canvas(ref.current,{scale:2,backgroundColor:"#fff",useCORS:true}).then(canvas=>{
-      const a=document.createElement("a"); a.download=dept.label+"-dias-libres.png"; a.href=canvas.toDataURL("image/png"); a.click();
+      downloadCanvasAsPng(canvas, dept.label+"-dias-libres.png");
     });
   }
 
@@ -1360,7 +1413,7 @@ function DaysOffHistoryModal({dept,deptEmps,daySlots,festivos,activeDeptId,onClo
             <span style={{fontSize:11,color:"#64748b",minWidth:32,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
             <button onClick={()=>setZoom(z=>Math.min(2,parseFloat((z+0.1).toFixed(1))))} style={{background:"none",border:"none",cursor:"pointer",fontSize:16,fontWeight:700,color:"#64748b",padding:"0 3px"}}>+</button>
           </div>
-          <button className="btn btn-primary" onClick={download}>Descargar PNG</button>
+          <button className="btn btn-primary" onClick={download}>📱 Guardar / Compartir</button>
           <button className="btn" onClick={onClose}>X</button>
         </div>
         <div style={{overflow:"auto",flex:1,padding:12}}>
