@@ -1739,6 +1739,36 @@ const INITIAL_EMPLOYEES = [
   {id:1010,name:"Majo",dept:"dependientas",schedules:{}}
 ];
 
+// --- Semilla: horario de Lucía (semana 19-25 oct 2026) ---
+// Se aplica una sola vez por navegador (flag hsa_seed_lucia_oct26) y respeta lo que ya haya guardado.
+(function seedLuciaOct26(){
+  try{
+    if(localStorage.getItem("hsa_seed_lucia_oct26"))return;
+    const t=new Date();t.setHours(0,0,0,0);
+    const dow=t.getDay();t.setDate(t.getDate()+(dow===0?-6:1-dow));
+    const target=new Date(2026,9,19);
+    const off=Math.round((target-t)/(7*86400000));
+    const wKey="w"+off;
+    const savedEmps=ls("hsa_emps",null);
+    let list=(savedEmps&&savedEmps.length>0)?savedEmps:INITIAL_EMPLOYEES;
+    list=JSON.parse(JSON.stringify(list));
+    const vac={};DEFAULT_SLOTS.forEach(s=>{vac[s.l]="VAC";});
+    let lu=list.find(e=>e.dept==="dependientas"&&e.name==="Lucía");
+    if(!lu){lu={id:1011,name:"Lucía",dept:"dependientas",schedules:{}};list.push(lu);}
+    const code="TIT:"+lu.id;
+    const shift=(a,b)=>{const o={};for(let h=a;h<b;h++)o[(h<10?"0":"")+h+":00"]=code;return o;};
+    lu.schedules=lu.schedules||{};
+    lu.schedules[wKey]={...(lu.schedules[wKey]||{}),0:shift(8,16),2:shift(9,17),3:shift(10,18),4:vac};
+    const fest=ls("hsa_festivos",{});
+    const cur=(fest.dependientas&&fest.dependientas[wKey])||[];
+    if(!cur.includes(1))cur.push(1);
+    fest.dependientas={...(fest.dependientas||{}),[wKey]:cur};
+    lsSet("hsa_emps",list);
+    lsSet("hsa_festivos",fest);
+    localStorage.setItem("hsa_seed_lucia_oct26","1");
+  }catch(e){}
+})();
+
 // --- Main App ---
 function App(){
   const [depts,setDepts]=useState(()=>ls("hsa_depts",INITIAL_DEPTS));
